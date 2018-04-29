@@ -469,6 +469,24 @@ function makeStruct(names) {
   return constructor;
 }
 
+function getTimestamp(line) {
+  //Ex: 04/12/15, 11:11 -
+  var re = /^(\d{2}\/\d{2}\/\d{2})\, (\d{2}\:\d{2}) \-/;
+  var timestamp = line.match(re);
+  if (timestamp) {
+    timestamp.formatType =  "en";
+    return timestamp;
+  }
+  //Ex: [09.04.18, 10:19:36] 
+  re = /^\[(\d{2}\.\d{2}\.\d{2})\, (\d{2}\:\d{2}:\d{2})\]/;
+  timestamp = line.match(re);
+  if (timestamp) {
+    timestamp.formatType =  "de";
+    return timestamp;
+  }
+  return undefined;
+}
+
 // transform data into arrays of lines
 function createArray(contents) {
 
@@ -481,18 +499,25 @@ function createArray(contents) {
   indexArray = [];
   delArray = [];
 
-  for (var i = 0; i < contents.length; i++) {
-    // search for [00.00.00, 00:00:00] and note index of "["
-    testString = contents.substring(i, i+20 );
+  var firstTimestamp;
+  // The timestmap length is different between languages, we use the longest one I know
+  // that is 20 for DE formatType. EN and IT timestamp length is 17 (with the trailing "-")
+  var timestampLength = 20
 
-    if ( (testString.substring(0,1) == "[")  &&
-         (!isNaN(testString.substring(1,3))) &&
-         (!isNaN(testString.substring( testString.length - 3  , testString.length -1 )))  &&
-         (testString.substring(testString.length - 1) == "]")
-       ) {
-         // save index
-         indexArray.push(i);
-       }
+  for (var i = 0; i < contents.length;) {
+    // search for [00.00.00, 00:00:00] and note index of "["
+    testString = contents.substring(i, i+timestampLength);
+    if (getTimestamp(testString)) {
+      if(!firstTimestamp) {
+        firstTimestamp = getTimestamp(testString);
+        if(firstTimestamp.formatType === "en") timestampLength = 17;
+      }
+      // save index
+      indexArray.push(i);
+      i += timestampLength;
+    } else {
+      i++;
+    }
   }
   // split messsages
 
@@ -510,7 +535,7 @@ function createArray(contents) {
   // e.g. announcments when people get added to groups
   a = 0;
   for (var i = 0; i < lineArray.length; i++)  {
-    if (lineArray[i].substring(20,lineArray[i].length).indexOf(":") < 0) {
+    if (lineArray[i].substring(timestampLength,lineArray[i].length).indexOf(":") < 0) {
       // no ":" found. Delete this line
       delArray[a] = i;
       a++;
@@ -528,7 +553,10 @@ function createArray(contents) {
 // transform lineArray into structs
 function createStructs(lineArray) {
 
-  var uniqueNames = findNames(lineArray);
+  // splice messages
+  var firstTimestamp = getTimestamp(lineArray[0]);
+  var namePosition = firstTimestamp.formatType === "en" ? 18 : 21;
+  var uniqueNames = findNames(lineArray, namePosition);
   var structArray = [];
 
   //console.log(lineArray);
@@ -545,13 +573,12 @@ function createStructs(lineArray) {
     // log name that is processed
     //console.log(name);
 
-    // splice messages
     for (j = 0; j < lineArray.length; j++) {
-      if ( lineArray[j].substring(21, 21 + nameLength).match(name) ) {
-
-        date[a] = lineArray[j].substring(1,9);
-        time[a] = lineArray[j].substring(11, 19);
-        message[a] = lineArray[j].substring(21 + uniqueNames[i].length);
+      if ( lineArray[j].substring(namePosition, namePosition + nameLength).match(name) ) {
+        var timestamp = getTimestamp(lineArray[j]);
+        date[a] = timestamp[0];
+        time[a] = timestamp[1];
+        message[a] = lineArray[j].substring(namePosition + uniqueNames[i].length);
         a++;
       }
     }
@@ -568,15 +595,15 @@ function createStructs(lineArray) {
 }
 
 // find names of the people
-function findNames(lineArray) {
+function findNames(lineArray, namePosition) {
   names = [];
   messages = [];
-  firstIndex = 21;
+  firstIndex = namePosition;
   group = false;
 
   for (var i = 0; i< lineArray.length; i++){
     // second occurence of ":" marks end of NAME
-    var secondIndex = lineArray[i].substring(21, lineArray[i].length - 1).indexOf(": ") + 21;
+    var secondIndex = lineArray[i].substring(firstIndex, lineArray[i].length - 1).indexOf(": ") + firstIndex;
 
     // log
     //console.log( lineArray[i].substring(21, lineArray[i].length - 1) );
