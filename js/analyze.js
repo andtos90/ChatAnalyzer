@@ -4,7 +4,6 @@ document.getElementById('file-input')
 
 //Read File
 function readSingleFile(e) {
-
   var file = e.target.files[0];
   if ((!file) || (file.type != "text/plain")) {
     console.log("ERROR! No txt file selected!");
@@ -82,7 +81,7 @@ function displayContents(contents) {
 
   // Most used words --------------------------------------
   var Words = getWordCount(contents[i].message);
-  var str4Pic = ["_<‎bild","_<picture"];
+  var str4Pic = ["_<‎bild","_<picture","<Media"];
   var sentPicsIndex = [-1,-1];
   var sentAudioIndex = [-1,-1];
   var sentAudioCount = [0,0];
@@ -129,7 +128,7 @@ function displayContents(contents) {
     // renove unwanted words
     // find position of "weggelassen>"
     // TODO: Add other languages
-    var endOfMedia = ["_weggelassen>"]
+    var endOfMedia = ["_weggelassen>", "omesso>"]
 
     for (var j = 0; j < mostUsed.length; j++) {
       if (mostUsed[j][0] == endOfMedia[0]) {
@@ -550,6 +549,12 @@ function createArray(contents) {
   return lineArray;
 }
 
+function removeStopwords(message) {
+  if(!message) return "";
+  message = message.replace(new RegExp('\\b('+stopwords.it+')\\b', 'g'), '');
+  return message;
+}
+
 // transform lineArray into structs
 function createStructs(lineArray) {
 
@@ -578,7 +583,7 @@ function createStructs(lineArray) {
         var timestamp = getTimestamp(lineArray[j]);
         date[a] = timestamp[0];
         time[a] = timestamp[1];
-        message[a] = lineArray[j].substring(namePosition + uniqueNames[i].length);
+        message[a] = removeStopwords(lineArray[j].substring(namePosition + uniqueNames[i].length));
         a++;
       }
     }
@@ -789,7 +794,9 @@ function getWordCount(messages) {
     var words = messages.join(" ").split(/[\b\s(?:,| )+]/);
 
   for (var i = 0; i < words.length; i++) {
-    wordCounts["_" + words[i].toLowerCase()] = (wordCounts["_" + words[i].toLowerCase()] || 0) + 1;
+    if(words[i].length > 2) {
+      wordCounts["_" + words[i].toLowerCase()] = (wordCounts["_" + words[i].toLowerCase()] || 0) + 1;
+    }
   }
   //console.log(wordCounts);
   return wordCounts;
